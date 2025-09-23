@@ -1,0 +1,16 @@
+{
+  "vocab_version": "0.1.1",
+  "terms": [
+    {
+      "lemma": "форма обратный связь",
+      "aliases": ["форма обратной связи", "обратная связь", "форма связи", "contact form"],
+      "element": "ContactForm"
+    },
+    {
+      "lemma": "каталог услуга",
+      "aliases": ["каталог услуг", "каталог сервисов", "services catalog", "список услуг"],
+      "element": "ServicesGrid"
+    },
+    { "lemma": "форма", "aliases": ["form"], "element": "ContactForm" }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+    "$schema":"http://json-schema.org/draft-07/schema#",
+    "type":"object",
+    "required":["session_id","text_full","lang"],
+    "properties":{
+      "session_id":{"type":"string"},
+      "text_full":{"type":"string","minLength":1},
+      "lang":{"type":"string","pattern":"^[a-z]{2}-[A-Z]{2}$"},
+      "duration_sec":{"type":["number","null"]},
+      "total_chunks":{"type":["integer","null"]}
+    }
+  }

@@ -1,0 +1,14 @@
+{
+    "$schema":"http://json-schema.org/draft-07/schema#",
+    "type":"object",
+    "required":["session_id","chunk_id","seq","text","lang"],
+    "properties":{
+      "session_id":{"type":"string"},
+      "chunk_id":{"type":"string"},
+      "seq":{"type":"integer","minimum":1},
+      "text":{"type":"string","minLength":1},
+      "overlap_prefix":{"type":["string","null"]},
+      "lang":{"type":"string","pattern":"^[a-z]{2}-[A-Z]{2}$"}
+    }
+  }
+  
