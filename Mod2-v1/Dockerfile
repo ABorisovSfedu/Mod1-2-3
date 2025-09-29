@@ -15,21 +15,26 @@ WORKDIR /app
 RUN python -m pip install --upgrade "pip==25.2"
 
 RUN pip install --no-cache-dir --timeout 60 --retries 10 \
-      --index-url https://pypi.org/simple \
-      fastapi==0.115.0 \
-      "uvicorn[standard]==0.30.6" \
-      pydantic==2.9.2 \
-      pydantic-settings==2.10.1 \
-      stanza==1.10.1 \
-      rapidfuzz==3.9.6 \
-      pytest==8.3.3 \
-      httpx==0.27.2 \
-      pyyaml==6.0.2 \
-      jsonschema==4.21.1 \
-      python-dotenv==1.0.1
+    --index-url https://pypi.org/simple \
+    fastapi==0.115.0 \
+    "uvicorn[standard]==0.30.6" \
+    pydantic==2.9.2 \
+    pydantic-settings==2.10.1 \
+    stanza==1.10.1 \
+    rapidfuzz==3.9.6 \
+    pytest==8.3.3 \
+    httpx==0.27.2 \
+    pyyaml==6.0.2 \
+    jsonschema==4.21.1 \
+    python-dotenv==1.0.1 \
+    sqlalchemy==2.0.34 \
+    sqlmodel==0.0.21 \
+    aiosqlite==0.20.0 \
+    alembic==1.13.2
 
 # код
 COPY . /app
 
+RUN pip install --no-cache-dir alembic==1.13.2
 EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn","main:app","--host","0.0.0.0","--port","8000"]

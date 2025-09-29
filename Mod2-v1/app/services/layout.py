@@ -16,7 +16,7 @@ def build_layout_for_session(session_id: str) -> Dict[str, Any]:
     Собираем layout из накопленных mappings в порядке seq, без дублей,
     ограничиваем MAX_COMPONENTS_PER_PAGE, укладываем по секциям шаблона.
     """
-    results = sorted(get_session_results(session_id), key=lambda r: r["seq"])
+    results = sorted(get_session_results(session_id), key=lambda r: r["seq"] or 0)
     seen = set()
     elements: List[str] = []
     for rec in results:
@@ -32,8 +32,8 @@ def build_layout_for_session(session_id: str) -> Dict[str, Any]:
     elements = elements[: settings.max_components_per_page]
 
     sections = {"hero": [], "main": [], "footer": []}
-    # Для hero-main-footer — добавим статический хиро-блок
-    if settings.page_template == "hero-main-footer":
+    # Добавляем Hero только если есть другие компоненты
+    if elements and settings.page_template == "hero-main-footer":
         sections["hero"].append({"component": "Hero"})
 
     for elem in elements:

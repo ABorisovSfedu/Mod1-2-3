@@ -82,3 +82,46 @@ def map_keyphrases_to_elements(keyphrases: List[Keyphrase], fuzzy_threshold: flo
             out.append(MappingResult(keyphrase=kp, element=best_element, score=best_score))
 
     return out
+
+
+def process_text_mapping(text: str) -> List[MappingResult]:
+    """
+    Обрабатывает текст и создает маппинги на UI компоненты.
+    Пока возвращает статические маппинги для демонстрации.
+    """
+    # TODO: Интегрировать с NLP pipeline для извлечения ключевых фраз
+    # Пока возвращаем статические маппинги на основе ключевых слов
+    
+    mappings = []
+    text_lower = text.lower()
+    
+    # Простые правила маппинга с учетом падежных форм
+    if any(word in text_lower for word in ["кнопка", "кнопку", "кнопки", "button"]):
+        mappings.append(MappingResult(
+            keyphrase=None,  # TODO: создать Keyphrase объект
+            element="ui.button", 
+            score=0.9
+        ))
+    
+    if any(word in text_lower for word in ["форма", "формы", "форму", "form"]):
+        mappings.append(MappingResult(
+            keyphrase=None,
+            element="ui.form", 
+            score=0.8
+        ))
+    
+    if any(word in text_lower for word in ["связь", "связи", "contact"]):
+        mappings.append(MappingResult(
+            keyphrase=None,
+            element="ContactForm", 
+            score=0.9
+        ))
+    
+    if any(word in text_lower for word in ["услуг", "услуги", "каталог", "каталога", "services"]):
+        mappings.append(MappingResult(
+            keyphrase=None,
+            element="ServicesGrid", 
+            score=0.8
+        ))
+    
+    return mappings

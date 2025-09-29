@@ -28,7 +28,7 @@ class Keyphrase(BaseModel):
 
 
 class MappingResult(BaseModel):
-    keyphrase: Keyphrase
+    keyphrase: Optional[Keyphrase] = None
     element: str
     score: float = Field(..., ge=0.0, le=1.0)
 
