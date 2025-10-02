@@ -37,10 +37,11 @@ async def save_final(data, idem_key):
 def get_session_results(session_id: str) -> List[Dict[str, Any]]:
     """
     Синхронная функция для получения результатов сессии.
-    Возвращает список записей с полями seq и mappings.
+    Возвращает список записей с полями seq, mappings, entities и keyphrases.
     """
     import asyncio
     from app.services.mapping import process_text_mapping
+    from app.nlp.extract import extract_keyphrases
     
     async def _get_results():
         async with async_session() as s:
@@ -53,24 +54,32 @@ def get_session_results(session_id: str) -> List[Dict[str, Any]]:
                 if event.kind == "chunk":
                     text = event.payload.get("text", "")
                     mappings = process_text_mapping(text)
-                    if mappings:
+                    keyphrases = extract_keyphrases(text)
+                    
+                    if mappings or keyphrases:
                         results.append({
                             "seq": event.seq,
                             "mappings": [
                                 {"element": m.element, "confidence": m.score} 
                                 for m in mappings
-                            ]
+                            ],
+                            "entities": [kp.lemma for kp in keyphrases],
+                            "keyphrases": [kp.text for kp in keyphrases]
                         })
                 elif event.kind == "final":
                     text = event.payload.get("text_full", "")
                     mappings = process_text_mapping(text)
-                    if mappings:
+                    keyphrases = extract_keyphrases(text)
+                    
+                    if mappings or keyphrases:
                         results.append({
                             "seq": None,
                             "mappings": [
                                 {"element": m.element, "confidence": m.score} 
                                 for m in mappings
-                            ]
+                            ],
+                            "entities": [kp.lemma for kp in keyphrases],
+                            "keyphrases": [kp.text for kp in keyphrases]
                         })
             
             return results

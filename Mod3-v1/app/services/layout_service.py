@@ -1,6 +1,6 @@
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
-from app.models import Template, Layout
+from app.models import Template, Layout, Component
 from config.settings import settings
 
 
@@ -76,21 +76,127 @@ class LayoutService:
         
         for match in matches:
             component_type = match['component_type']
-            section = rules.get(component_type, "main")  # По умолчанию в main
+            # Применяем новые правила раскладки
+            section = self._get_section_by_category(component_type, rules)
             
             if section in sections:
+                # Нормализуем имя компонента
+                normalized_component = self._normalize_component_name(component_type)
+                
+                # Получаем props для компонента
+                props = self._get_component_props(normalized_component)
+                
                 sections[section].append({
-                    "component": component_type,
+                    "component": normalized_component,
+                    "props": props,
                     "confidence": match['confidence'],
                     "match_type": match['match_type']
                 })
         
-        # Добавляем Hero компонент в hero секцию только если есть другие компоненты
-        if "hero" in sections and not any(comp["component"] == "Hero" for comp in sections["hero"]):
-            # Добавляем Hero только если есть хотя бы один компонент в других секциях
-            has_components = any(len(sections[sec]) > 0 for sec in sections if sec != "hero")
-            if has_components:
-                sections["hero"].append({"component": "Hero", "confidence": 1.0, "match_type": "default"})
+        # Применяем feature flags
+        if settings.dedup_by_component:
+            sections = self._deduplicate_by_component(sections)
+        
+        if settings.fallback_sections:
+            sections = self._add_fallback_sections(sections)
+        
+        if settings.at_least_one_main:
+            sections = self._ensure_at_least_one_main(sections)
+        
+        return sections
+    
+    def _get_section_by_category(self, component_type: str, rules: Dict[str, str]) -> str:
+        """Определяет секцию на основе категории компонента"""
+        # Получаем компонент из БД для определения категории
+        component = self.db.query(Component).filter(
+            Component.component_type == component_type,
+            Component.is_active == True
+        ).first()
+        
+        if component and component.category:
+            # Новые правила раскладки
+            category_rules = {
+                'action': 'main',
+                'form': 'main', 
+                'list': 'main',
+                'card': 'main',
+                'table': 'main',
+                'chart': 'main',
+                'branding': 'hero',
+                'splash': 'hero',
+                'meta': 'footer',
+                'contact': 'footer',
+                'links': 'footer'
+            }
+            return category_rules.get(component.category, rules.get(component_type, "main"))
+        
+        return rules.get(component_type, "main")
+    
+    def _normalize_component_name(self, component_name: str) -> str:
+        """Нормализует имя компонента к формату ui.*"""
+        if not settings.names_normalize:
+            return component_name
+            
+        # Если уже в формате ui.*, возвращаем как есть
+        if component_name.startswith('ui.'):
+            return component_name
+            
+        # Конвертируем в snake_case и добавляем префикс ui.
+        import re
+        snake_case = re.sub('([A-Z]+)', r'_\1', component_name).lower().strip('_')
+        return f"ui.{snake_case}"
+    
+    def _get_component_props(self, component_name: str) -> Dict[str, Any]:
+        """Получает props для компонента"""
+        if not settings.require_props:
+            return {}
+            
+        component = self.db.query(Component).filter(
+            Component.component_type == component_name,
+            Component.is_active == True
+        ).first()
+        
+        if component and component.example_props:
+            return component.example_props
+        
+        # Возвращаем пустые props если не найдены
+        return {}
+    
+    def _deduplicate_by_component(self, sections: Dict[str, List[Dict[str, Any]]]) -> Dict[str, List[Dict[str, Any]]]:
+        """Удаляет дубликаты по имени компонента в секции"""
+        for section_name, components in sections.items():
+            seen_components = {}
+            for component in components:
+                comp_name = component['component']
+                if comp_name not in seen_components or component['confidence'] > seen_components[comp_name]['confidence']:
+                    seen_components[comp_name] = component
+            sections[section_name] = list(seen_components.values())
+        
+        return sections
+    
+    def _add_fallback_sections(self, sections: Dict[str, List[Dict[str, Any]]]) -> Dict[str, List[Dict[str, Any]]]:
+        """Добавляет fallback секции если они пустые"""
+        # Проверяем, есть ли хотя бы один компонент в любой секции
+        has_any_components = any(len(components) > 0 for components in sections.values())
+        
+        if not has_any_components:
+            # Добавляем hero секцию
+            if "hero" in sections:
+                hero_props = self._get_component_props("ui.hero")
+                sections["hero"] = [{"component": "ui.hero", "props": hero_props, "confidence": 1.0, "match_type": "fallback"}]
+            
+            # Добавляем main секцию
+            if "main" in sections:
+                container_props = self._get_component_props("ui.container")
+                sections["main"] = [{"component": "ui.container", "props": container_props, "confidence": 1.0, "match_type": "fallback"}]
+        
+        return sections
+    
+    def _ensure_at_least_one_main(self, sections: Dict[str, List[Dict[str, Any]]]) -> Dict[str, List[Dict[str, Any]]]:
+        """Обеспечивает наличие хотя бы одного блока в main секции"""
+        if "main" in sections and len(sections["main"]) == 0:
+            container_props = self._get_component_props("ui.container")
+            sections["main"] = [{"component": "ui.container", "props": container_props, "confidence": 1.0, "match_type": "fallback"}]
         
         return sections
     

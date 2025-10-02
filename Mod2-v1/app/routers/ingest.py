@@ -8,7 +8,7 @@ from app.utils.schemas import chunk_validator, final_validator
 # Подпись HMAC-SHA256
 from app.utils.security import verify_hmac_sha256
 
-from app.settings import settings  # type: ignore
+from config.settings import settings  # type: ignore
 from app.services.ingest_service import process_chunk, process_final
 from app.services.idempotency import seen_before
 from app.services.webhooks import upsert_webhook, get_secret_for_session

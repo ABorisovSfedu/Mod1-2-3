@@ -65,10 +65,18 @@ class Settings(BaseSettings):
     # — Layout —
     page_template: str = Field(default="hero-main-footer", alias="PAGE_TEMPLATE")
     max_components_per_page: int = Field(default=12, alias="MAX_COMPONENTS_PER_PAGE")
+    layout_provider: str = Field(default="internal", alias="LAYOUT_PROVIDER")  # "internal" or "external"
+    nlp_debug: bool = Field(default=False, alias="NLP_DEBUG")
 
     # — Tiers —
     plan: Literal["BASIC", "EXTENDED", "PREMIUM"] = Field(default="EXTENDED", alias="PLAN")
 
+    # — Database —
+    db_url: str = Field(default="sqlite:///./data/mod2.db", alias="DB_URL")
+    
+    # — Security —
+    ingest_secret: str = Field(default="changeme", alias="INGEST_SECRET")
+    
     # — Server —
     environment: str = Field(default="dev")
     host: str = Field(default="0.0.0.0")

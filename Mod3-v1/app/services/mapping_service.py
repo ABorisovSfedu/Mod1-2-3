@@ -3,12 +3,14 @@ from sqlalchemy.orm import Session
 from rapidfuzz import fuzz
 from app.models import Term, Synonym, Component, Mapping
 from config.settings import settings
+import re
 
 
 class MappingService:
     def __init__(self, db: Session):
         self.db = db
         self.fuzzy_threshold = settings.fuzzy_threshold
+        self.max_matches = settings.max_matches
     
     def find_matches(self, entities: List[str], keyphrases: List[str]) -> List[Dict[str, Any]]:
         """
@@ -41,7 +43,10 @@ class MappingService:
         
         # Удаляем дубликаты и сортируем по уверенности
         unique_matches = self._deduplicate_matches(matches)
-        return sorted(unique_matches, key=lambda x: x['confidence'], reverse=True)
+        sorted_matches = sorted(unique_matches, key=lambda x: x['confidence'], reverse=True)
+        
+        # Ограничиваем количество совпадений
+        return sorted_matches[:self.max_matches]
     
     def _find_exact_match(self, term: str) -> Optional[Dict[str, Any]]:
         """Поиск точного совпадения"""
@@ -62,7 +67,9 @@ class MappingService:
                     'component': mapping.component.name,
                     'component_type': mapping.component.component_type,
                     'confidence': mapping.confidence,
-                    'match_type': 'exact'
+                    'match_type': 'exact',
+                    'rule_id': mapping.id,
+                    'score': 1.0
                 }
         
         return None
@@ -85,7 +92,9 @@ class MappingService:
                     'component': mapping.component.name,
                     'component_type': mapping.component.component_type,
                     'confidence': mapping.confidence * 0.9,  # Немного снижаем уверенность для синонимов
-                    'match_type': 'synonym'
+                    'match_type': 'synonym',
+                    'rule_id': mapping.id,
+                    'score': 0.9
                 }
         
         return None
@@ -112,7 +121,9 @@ class MappingService:
                         'component': mapping.component.name,
                         'component_type': mapping.component.component_type,
                         'confidence': mapping.confidence * score * 0.8,  # Снижаем уверенность для fuzzy
-                        'match_type': 'fuzzy'
+                        'match_type': 'fuzzy',
+                        'rule_id': mapping.id,
+                        'score': score
                     }
         
         # Поиск по синонимам
@@ -133,7 +144,9 @@ class MappingService:
                             'component': mapping.component.name,
                             'component_type': mapping.component.component_type,
                             'confidence': mapping.confidence * score * 0.7,  # Еще больше снижаем для синонимов
-                            'match_type': 'fuzzy_synonym'
+                            'match_type': 'fuzzy_synonym',
+                            'rule_id': mapping.id,
+                            'score': score
                         }
         
         return best_match
@@ -148,4 +161,18 @@ class MappingService:
                 seen_components[component] = match
         
         return list(seen_components.values())
+    
+    def normalize_component_name(self, component_name: str) -> str:
+        """Нормализует имя компонента к формату ui.*"""
+        if not settings.names_normalize:
+            return component_name
+            
+        # Если уже в формате ui.*, возвращаем как есть
+        if component_name.startswith('ui.'):
+            return component_name
+            
+        # Конвертируем в snake_case и добавляем префикс ui.
+        # Hero -> ui.hero, ContactForm -> ui.contact_form
+        snake_case = re.sub('([A-Z]+)', r'_\1', component_name).lower().strip('_')
+        return f"ui.{snake_case}"
 

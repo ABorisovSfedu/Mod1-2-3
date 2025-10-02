@@ -9,13 +9,13 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.settings import settings
+from config.settings import settings
 from app.models import Base  # ensure models are imported so metadata is populated
 
 
 def _normalized_db_url(url: Optional[str]) -> str:
     """Convert sync sqlite URL to async driver if needed."""
-    raw = url or "sqlite:////app/data/mod2.db"
+    raw = url or "sqlite:///./data/mod2.db"
     if raw.startswith("sqlite+aiosqlite:"):
         return raw
     if raw.startswith("sqlite:"):
