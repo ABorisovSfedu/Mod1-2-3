@@ -1,0 +1,16 @@
+services:
+  mod2-app:
+    build: .
+    container_name: mod2-app
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=dev
+      - PYTHONPATH=/app
+      - INGEST_SECRET=changeme
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/healthz', timeout=2).getcode()==200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
