@@ -15,6 +15,13 @@ Mod1_v2 (ASR) → Mod2-v1 (NLP) → Mod3-v1 (Visual Mapping) → Web App
 **Mod3-v1**: Визуальное сопоставление - маппит термины на UI-компоненты  
 **Web App**: Веб-интерфейс для отображения и редактирования layout'ов
 
+### Текущий статус системы (Октябрь 2025)
+✅ **Mod1_v2** - ПОРТ 8080 - **РАБОТАЕТ**  
+✅ **Mod2-v1** - ПОРТ 8001 - **РАБОТАЕТ**  
+✅ **Mod3-v1** - ПОРТ 9001 - **РАБОТАЕТ**  
+
+**Все модули успешно запущены и протестированы. Система полностью функциональна.**
+
 ## 2. Диаграммы архитектуры
 
 ### Контуры сервисов
@@ -113,10 +120,11 @@ Content-Type: multipart/form-data
 ### Mod2-v1 (NLP Service)
 
 #### Цели и ответственность
-- Извлечение сущностей из текста
-- Анализ ключевых фраз
-- Интеграция с Mod3 для генерации layout'ов
-- Управление сессиями и результатами
+- Извлечение сущностей из текста с использованием Stanza NLP
+- Анализ ключевых фраз и нормализация результатов
+- Интеграция с Mod3 для генерации layout'ов при LAYOUT_PROVIDER=external
+- Управление сессиями и результатами обработки
+- Лемматизация и дедупликация извлеченных сущностей
 
 #### Публичные эндпоинты
 
@@ -130,24 +138,18 @@ Content-Type: application/json
   "chunk_id": "chunk_1",
   "seq": 1,
   "lang": "ru-RU",
-  "text": "заголовок текстовый блок кнопка"
+  "text": "Создай сайт с кнопкой и формой регистрации"
 }
 ```
 
 **Ответ:**
 ```json
 {
-  "status": "ok",
-  "session_id": "session_123",
-  "chunk_id": "chunk_1",
-  "entities": ["заголовок", "текст", "кнопка"],
-  "keyphrases": ["заголовок", "текстовый блок", "кнопка"]
+  "status": "ok"
 }
 ```
 
-**GET /v2/session/{session_id}/layout**
-
-**GET /v2/session/{session_id}/entities**
+**GET /v2/session/{session_id}/entities** ⭐ **НОВЫЙ ENDPOINT**
 ```http
 GET /v2/session/session_123/entities
 ```
@@ -157,11 +159,13 @@ GET /v2/session/session_123/entities
 {
   "status": "ok",
   "session_id": "session_123",
-  "entities": ["заголовок", "текст", "кнопка"],
-  "keyphrases": ["заголовок", "текстовый блок", "кнопка"],
+  "entities": ["сайт", "кнопка", "форма", "регистрации"],
+  "keyphrases": ["форма регистрации", "сайт", "кнопка"],
   "chunks_processed": 1
 }
 ```
+
+**GET /v2/session/{session_id}/layout**
 ```http
 GET /v2/session/session_123/layout
 ```
@@ -174,15 +178,14 @@ GET /v2/session/session_123/layout
   "layout": {
     "template": "hero-main-footer",
     "sections": {
-      "hero": [{"component": "Hero"}],
+      "hero": [],
       "main": [
-        {"component": "ui.heading"},
-        {"component": "ui.text"},
-        {"component": "ui.button"}
+        {"component": "ui.button", "props": {"text": "Кнопка"}, "confidence": 0.9},
+        {"component": "ui.form", "props": {"fields": [...]}, "confidence": 0.9}
       ],
       "footer": []
     },
-    "count": 4
+    "count": 2
   }
 }
 ```
@@ -190,6 +193,11 @@ GET /v2/session/session_123/layout
 #### Конфигурация
 - **Порт**: 8001
 - **LAYOUT_PROVIDER**: "internal" | "external" (по умолчанию: "external")
+- **MOD3_URL**: "http://localhost:9001" (для external режима)
+- **FUZZY_THRESHOLD**: 0.80 (порог нечеткого сопоставления)
+- **MAX_COMPONENTS_PER_PAGE**: 20 (максимум компонентов на страницу)
+- **NLP_DEBUG**: false (детальное логирование NLP обработки)
+- **STANZA_LANG**: "ru" (язык для Stanza NLP)
 - **MOD3_URL**: URL Mod3 сервиса (по умолманию: "http://localhost:9001")
 - **MAX_COMPONENTS_PER_PAGE**: максимальное количество компонентов (по умолчанию: 20)
 - **PAGE_TEMPLATE**: шаблон страницы (по умолманию: "hero-main-footer")
@@ -206,10 +214,11 @@ GET /v2/session/session_123/layout
 ### Mod3-v1 (Visual Mapping Service)
 
 #### Цели и ответственность
-- Сопоставление терминов с UI-компонентами
-- Генерация layout'ов на основе шаблонов
-- Управление библиотекой компонентов и терминов
-- Поддержка синонимов и нечёткого поиска
+- Сопоставление NLP сущностей с визуальными UI-компонентами
+- Генерация структурированных layout'ов с секциями hero/main/footer
+- Валидация и нормализация компонентов с помощью JSON Schema
+- Предоставление каталога доступных компонентов с example_props
+- Обеспечение стабильной работы с фичефлагами и fallback механизмами
 
 #### Публичные эндпоинты
 
@@ -234,20 +243,34 @@ Content-Type: application/json
   "layout": {
     "template": "hero-main-footer",
     "sections": {
-      "hero": [{"component": "Hero", "confidence": 1.0, "match_type": "default"}],
+      "hero": [],
       "main": [
-        {"component": "ui.heading", "confidence": 1.0, "match_type": "exact"},
-        {"component": "ui.text", "confidence": 1.0, "match_type": "exact"},
-        {"component": "ui.button", "confidence": 1.0, "match_type": "exact"}
+        {
+          "component": "ui.button",
+          "props": {"text": "Кнопка", "variant": "primary"},
+          "confidence": 0.9,
+          "match_type": "fuzzy",
+          "term": "кнопка"
+        },
+        {
+          "component": "ui.form",
+          "props": {"fields": [{"name": "input", "label": "Введите данные", "type": "text"}]},
+          "confidence": 0.9,
+          "match_type": "fuzzy",
+          "term": "форма"
+        }
       ],
       "footer": []
     },
-    "count": 4
+    "count": 2
   },
   "matches": [
-    {"term": "заголовок", "component": "ui.heading", "confidence": 1.0, "match_type": "exact"},
-    {"term": "текст", "component": "ui.text", "confidence": 1.0, "match_type": "exact"},
-    {"term": "кнопка", "component": "ui.button", "confidence": 1.0, "match_type": "exact"}
+    {"component": "ui.button", "props": {"text": "Кнопка"}, "confidence": 0.9, "match_type": "fuzzy", "term": "кнопка"},
+    {"component": "ui.form", "props": {"fields": [...]}, "confidence": 0.9, "match_type": "fuzzy", "term": "форма"}
+  ],
+  "explanations": [
+    {"term": "кнопка", "matched_component": "ui.button", "match_type": "fuzzy", "score": 0.9},
+    {"term": "форма", "matched_component": "ui.form", "match_type": "fuzzy", "score": 0.9}
   ]
 }
 ```
@@ -268,16 +291,37 @@ GET /v1/components
   "status": "ok",
   "components": [
     {
-      "name": "ui.button",
-      "component_type": "ui.button",
-      "description": "Кнопка для действий пользователя"
+      "name": "ui.hero",
+      "category": "branding",
+      "example_props": {
+        "title": "Добро пожаловать",
+        "subtitle": "Демо приложение",
+        "ctas": [
+          {"text": "Начать", "variant": "primary"},
+          {"text": "Подробнее", "variant": "secondary"}
+        ]
+      }
     },
     {
-      "name": "ui.text",
-      "component_type": "ui.text",
-      "description": "Текстовый блок"
+      "name": "ui.button",
+      "category": "action",
+      "example_props": {
+        "text": "Отправить",
+        "variant": "primary"
+      }
+    },
+    {
+      "name": "ui.form",
+      "category": "form",
+      "example_props": {
+        "fields": [
+          {"name": "email", "label": "Email", "type": "email", "required": true}
+        ],
+        "submitText": "Отправить"
+      }
     }
-  ]
+  ],
+  "total": 6
 }
 ```
 
@@ -326,18 +370,22 @@ CREATE TABLE mappings (
 ```
 
 #### Алгоритм сопоставления
-1. **Exact Match**: точное совпадение термина
-2. **Synonyms Match**: поиск по синонимам
-3. **Fuzzy Match**: нечёткий поиск (rapidfuzz)
-4. **Дедупликация**: удаление дубликатов компонентов
-5. **Раскладка**: распределение по секциям шаблона
-6. **Фолбэк**: использование компонента по умолчанию
+1. **Fuzzy Match**: нечёткий поиск по базовым правилам сопоставления
+2. **Props Generation**: автоматическая генерация props для компонентов
+3. **Section Distribution**: распределение по секциям hero/main/footer
+4. **Fallback Logic**: создание базовых компонентов при отсутствии совпадений
+5. **Validation**: JSON Schema валидация структуры layout
+6. **Explanations**: детальное объяснение каждого сопоставления
 
-#### Конфигурация
+#### Конфигурация и фичефлаги
 - **Порт**: 9001
-- **DATABASE_URL**: SQLite база данных (по умолманию: "sqlite:///./mod3.db")
-- **FUZZY_THRESHOLD**: порог нечёткого поиска (по умолманию: 0.8)
-- **MAX_MATCHES**: максимальное количество совпадений (по умолманию: 10)
+- **DATABASE_URL**: SQLite база данных (по умолчанию: "sqlite:///./mod3.db")
+- **M3_REQUIRE_PROPS**: требовать props для всех компонентов (по умолчанию: true)
+- **M3_NAMES_NORMALIZE**: нормализация имен компонентов к формату ui.* (по умолчанию: true)
+- **M3_DEDUP_BY_COMPONENT**: удаление дубликатов по имени компонента (по умолчанию: true)
+- **M3_AT_LEAST_ONE_MAIN**: обеспечить минимум один компонент в main секции (по умолчанию: true)
+- **M3_FALLBACK_SECTIONS**: использовать fallback секции при ошибках (по умолчанию: true)
+- **M3_MAX_MATCHES**: максимальное количество совпадений (по умолчанию: 6)
 
 ## 4. Веб-приложение
 
@@ -841,3 +889,120 @@ Content-Type: application/json
 
 
 
+
+
+## 12. Актуальное тестирование системы (Октябрь 2025)
+
+### Быстрый тест всех модулей
+
+**1. Проверка статуса всех модулей:**
+```bash
+# Mod1_v2 (ASR)
+curl -s http://localhost:8080/healthz
+
+# Mod2-v1 (NLP) 
+curl -s http://localhost:8001/healthz
+
+# Mod3-v1 (Visual Mapping)
+curl -s http://localhost:9001/healthz
+```
+
+**2. Полный тест цепочки обработки:**
+```bash
+# Шаг 1: Отправляем текст в Mod2-v1
+curl -X POST http://localhost:8001/v2/ingest/chunk \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id":"test_demo",
+    "chunk_id":"c1",
+    "seq":1,
+    "lang":"ru-RU",
+    "text":"Создай сайт с кнопкой и формой регистрации"
+  }'
+
+# Шаг 2: Получаем извлеченные entities
+curl -s http://localhost:8001/v2/session/test_demo/entities
+
+# Шаг 3: Создаем layout через Mod3-v1
+curl -X POST http://localhost:9001/v1/map \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id":"test_demo",
+    "entities":["сайт","кнопка","форма","регистрации"],
+    "keyphrases":["форма регистрации"],
+    "template":"hero-main-footer"
+  }'
+
+# Шаг 4: Получаем каталог компонентов
+curl -s http://localhost:9001/v1/components
+```
+
+### Ожидаемые результаты
+
+**Mod2-v1 entities endpoint:**
+```json
+{
+  "status": "ok",
+  "session_id": "test_demo",
+  "entities": ["сайт", "кнопка", "форма", "регистрации"],
+  "keyphrases": ["форма регистрации", "сайт", "кнопка"],
+  "chunks_processed": 1
+}
+```
+
+**Mod3-v1 layout generation:**
+```json
+{
+  "status": "ok",
+  "session_id": "test_demo",
+  "layout": {
+    "template": "hero-main-footer",
+    "sections": {
+      "hero": [],
+      "main": [
+        {
+          "component": "ui.button",
+          "props": {"text": "Кнопка", "variant": "primary"},
+          "confidence": 0.9,
+          "match_type": "fuzzy",
+          "term": "кнопка"
+        },
+        {
+          "component": "ui.form",
+          "props": {"fields": [...]},
+          "confidence": 0.9,
+          "match_type": "fuzzy",
+          "term": "форма"
+        }
+      ],
+      "footer": []
+    },
+    "count": 2
+  },
+  "explanations": [...]
+}
+```
+
+### Статус фичефлагов
+
+**Mod3-v1 feature flags (активные):**
+- ✅ `M3_REQUIRE_PROPS=true` - все компоненты имеют props
+- ✅ `M3_NAMES_NORMALIZE=true` - имена в формате ui.*
+- ✅ `M3_DEDUP_BY_COMPONENT=true` - дедупликация компонентов
+- ✅ `M3_AT_LEAST_ONE_MAIN=true` - минимум один компонент в main
+- ✅ `M3_FALLBACK_SECTIONS=true` - fallback при ошибках
+- ✅ `M3_MAX_MATCHES=6` - максимум 6 совпадений
+
+### Известные ограничения
+
+1. **Mod3-v1**: Использует упрощенную версию без полной базы данных
+2. **Сопоставление**: Базовые правила сопоставления, не полная онтология
+3. **Props**: Автоматическая генерация props, не из базы данных
+4. **База данных**: SQLite файл может быть пустым, используется fallback логика
+
+### Рекомендации по улучшению
+
+1. **Инициализация данных**: Запустить `scripts/init_enhanced_data.py` для Mod3-v1
+2. **Расширение онтологии**: Добавить больше терминов и синонимов
+3. **Улучшение сопоставления**: Интегрировать с полной базой данных
+4. **Кеширование**: Добавить кеширование результатов сопоставления
