@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8" /><title>ASR Stream Demo 2</title></head>
+<body>
+  <h1>ASR Stream Demo</h1>
+  <button id="start">Start</button>
+  <button id="stop" disabled>Stop</button>
+  <pre id="log"></pre>
+  <script>
+    const logEl=document.getElementById('log');
+    const log=(...a)=>{logEl.textContent+=a.join(' ')+'\n';logEl.scrollTop=logEl.scrollHeight;};
+    let mediaRecorder,ws;
+    
+    document.getElementById('start').onclick=async()=>{
+      const sessionId=crypto.randomUUID();
+      ws=new WebSocket(`ws://${location.host}/v1/stream?session_id=${sessionId}&lang=ru-RU&emit_partial=true&chunking=on`);
+      ws.binaryType='arraybuffer';
+    
+      ws.onopen=()=>log('WS open');
+      ws.onmessage=ev=>{
+        log('WS →', ev.data);
+        try{
+          const msg=JSON.parse(ev.data);
+          if(msg.type==='final_full'){
+            log('FINAL text_full length:', (msg.payload?.text_full||'').length);
+            ws.close(); // закрываем ТОЛЬКО после финала
+          }
+        }catch(_){}
+      };
+      ws.onclose=()=>log('WS closed');
+    
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      mediaRecorder=new MediaRecorder(stream,{mimeType:'audio/webm;codecs=opus',audioBitsPerSecond:128000});
+      mediaRecorder.ondataavailable=e=>{
+        if(e.data && e.data.size>0 && ws.readyState===1){
+          e.data.arrayBuffer().then(buf=>ws.send(buf));
+        }
+      };
+      mediaRecorder.start(1000);
+      log('Recording started, session:', sessionId);
+      document.getElementById('start').disabled=true;
+      document.getElementById('stop').disabled=false;
+    };
+    
+    document.getElementById('stop').onclick=()=>{
+      mediaRecorder?.stop();
+      ws?.send(JSON.stringify({type:'eos'}));   // только eos, без close()
+      log('Stopped (waiting for final_full)...');
+      document.getElementById('start').disabled=false;
+      document.getElementById('stop').disabled=true;
+    };
+    </script>    
+</body>
+</html>
