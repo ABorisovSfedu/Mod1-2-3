@@ -1,0 +1,30 @@
+version: "3.9"
+services:
+  app:
+    build: .
+    container_name: asr-chunker
+    ports:
+      - "8080:8080"
+    environment:
+      - CONFIG_FILE=/app/config.yaml
+      - WHISPER_MODEL=small
+      - EMIT_PARTIAL=true
+      - CHUNK_SENT_MIN=3
+      - CHUNK_SENT_MAX=5
+      - CHUNK_CHAR_LIMIT=1200
+      - OVERLAP_SENT=1
+      - SAVE_RAW_AUDIO=false
+      - STUB_ASR=false
+      - TIER=Basic
+      - MODULE2_WEBHOOK_CHUNK_URL=http://host.docker.internal:8000/v2/ingest/chunk
+      - MODULE2_WEBHOOK_FINAL_URL=http://host.docker.internal:8000/v2/ingest/full
+      - INGEST_SECRET=changeme
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./alembic:/app/alembic
+      - alembic-data:/app/alembic-data
+      - sqlite-data:/app/data
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+volumes:
+  alembic-data: {}
+  sqlite-data: {}
