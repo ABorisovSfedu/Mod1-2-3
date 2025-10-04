@@ -1,0 +1,35 @@
+app:
+  host: 0.0.0.0
+  port: 8080
+  log_level: info
+  save_raw_audio: false
+  emit_partial: true
+  webhook_url: ""
+  tier: Basic
+  stub_asr: false
+  ws_debounce_ms: 1200
+
+limits:
+  Basic:
+    max_duration_sec: 900
+    max_file_mb: 25
+  Extended:
+    max_duration_sec: 3600
+    max_file_mb: 200
+  Premium:
+    max_duration_sec: 14400
+    max_file_mb: 2048
+
+whisper:
+  model: small
+  device: cpu
+  compute_type: int8
+  language: ru
+  vad_filter: true
+  temperature: 0.0
+
+chunking:
+  sent_min: 3
+  sent_max: 5
+  char_limit: 1200
+  overlap_sent: 1

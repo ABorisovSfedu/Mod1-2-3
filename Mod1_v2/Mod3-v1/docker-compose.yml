@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: mod3-postgres
+    environment:
+      POSTGRES_DB: mod3_db
+      POSTGRES_USER: mod3_user
+      POSTGRES_PASSWORD: mod3_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mod3_user -d mod3_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mod3-app:
+    build: .
+    container_name: mod3-app
+    ports:
+      - "9000:9000"
+    environment:
+      - DATABASE_URL=postgresql://mod3_user:mod3_password@postgres:5432/mod3_db
+      - PYTHONPATH=/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
